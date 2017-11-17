@@ -1,0 +1,22 @@
+{application, vmq_psk,
+ [
+  {description, "Simple User PSK Management Plugin for VerneMQ"},
+  {vsn, git},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  crypto,
+                  clique
+                 ]},
+  {mod, { vmq_psk_app, []}},
+  {env, [
+      {file, "priv/test.psk"},
+      {interval, 10},
+      {vmq_config_enabled, true},
+      {vmq_plugin_hooks, [
+          {vmq_psk, change_config, 1, [internal]},
+          {vmq_psk, ssl_on_psk_user_lookup, 2, []}
+        ]}
+    ]}
+ ]}.
