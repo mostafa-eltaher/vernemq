@@ -52,8 +52,7 @@ opts(Opts) ->
     [{cacertfile, proplists:get_value(cafile, Opts)},
      {certfile, proplists:get_value(certfile, Opts)},
      {keyfile, proplists:get_value(keyfile, Opts)},
-     %{ciphers, ciphersuite_transform(proplists:get_value(ciphers, Opts, []))},
-     {ciphers, ssl:cipher_suites(all)},
+     {ciphers, ciphersuite_transform(proplists:get_value(ciphers, Opts, []))},
      {fail_if_no_peer_cert, proplists:get_value(require_certificate,
                                                 Opts, false)},
      {verify, case
@@ -82,27 +81,29 @@ opts(Opts) ->
     ].
 
 
-% -spec ciphersuite_transform([string()]) -> [string()].
-% ciphersuite_transform([]) ->
-%     filter_ciphers(ciphers());
-% ciphersuite_transform(CiphersString) when is_list(CiphersString) ->
-%     CiphersString.
+-spec ciphersuite_transform([string()]) -> [string()|binary()].
+ciphersuite_transform([]) ->
+    filter_ciphers(ciphers());
+ciphersuite_transform(CiphersString) when is_list(CiphersString) ->
+    %% parsing to binary list, this is needed since ssl_cipher:openssl_suite
+    %% does not handle PSK cipher names.
+    [openssl_psk_suite(C) || C <- string:tokens(CiphersString, ":")].
 
-% filter_ciphers(Ciphers) ->
-%     %% erlang 17 (ssl app version < 7.0 does not support GCM
-%     case proplists:get_value(ssl_app, ssl:versions()) of
-%         [M | _] when M =:= $5; M =:= $6 ->
-%             remove_gcm_ciphers(Ciphers);
-%         _ ->
-%             Ciphers
-%     end.
+filter_ciphers(Ciphers) ->
+    %% erlang 17 (ssl app version < 7.0 does not support GCM
+    case proplists:get_value(ssl_app, ssl:versions()) of
+        [M | _] when M =:= $5; M =:= $6 ->
+            remove_gcm_ciphers(Ciphers);
+        _ ->
+            Ciphers
+    end.
 
-% remove_gcm_ciphers(Ciphers) ->
-%     lists:filter(
-%       fun(Cipher) ->
-%               string:str(Cipher, "-GCM-") =:= 0
-%       end,
-%      Ciphers).
+remove_gcm_ciphers(Ciphers) ->
+    lists:filter(
+      fun(Cipher) ->
+              string:str(Cipher, "-GCM-") =:= 0
+      end,
+     Ciphers).
 
 -spec verify_ssl_peer(_, 'valid' | 'valid_peer' |
                       {'bad_cert', _} |
@@ -137,41 +138,53 @@ check_user_state(UserState, Cert) ->
             end
     end.
 
-% ciphers() ->
-%     ["ECDHE-ECDSA-AES256-GCM-SHA384"
-%      ,"ECDHE-RSA-AES256-GCM-SHA384"
-%      ,"ECDHE-ECDSA-AES256-SHA384"
-%      ,"ECDHE-RSA-AES256-SHA384"
-%      ,"ECDHE-ECDSA-DES-CBC3-SHA"
-%      ,"ECDH-ECDSA-AES256-GCM-SHA384"
-%      ,"ECDH-RSA-AES256-GCM-SHA384"
-%      ,"ECDH-ECDSA-AES256-SHA384"
-%      ,"ECDH-RSA-AES256-SHA384"
-%      ,"DHE-DSS-AES256-GCM-SHA384"
-%      ,"DHE-DSS-AES256-SHA256"
-%      ,"AES256-GCM-SHA384"
-%      ,"AES256-SHA256"
-%      ,"ECDHE-ECDSA-AES128-GCM-SHA256"
-%      ,"ECDHE-RSA-AES128-GCM-SHA256"
-%      ,"ECDHE-ECDSA-AES128-SHA256"
-%      ,"ECDHE-RSA-AES128-SHA256"
-%      ,"ECDH-ECDSA-AES128-GCM-SHA256"
-%      ,"ECDH-RSA-AES128-GCM-SHA256"
-%      ,"ECDH-ECDSA-AES128-SHA256"
-%      ,"ECDH-RSA-AES128-SHA256"
-%      ,"DHE-DSS-AES128-GCM-SHA256"
-%      ,"DHE-DSS-AES128-SHA256"
-%      ,"AES128-GCM-SHA256"
-%      ,"AES128-SHA256"
-%      ,"ECDHE-ECDSA-AES256-SHA"
-%      ,"ECDHE-RSA-AES256-SHA"
-%      ,"DHE-DSS-AES256-SHA"
-%      ,"ECDH-ECDSA-AES256-SHA"
-%      ,"ECDH-RSA-AES256-SHA"
-%      ,"AES256-SHA"
-%      ,"ECDHE-ECDSA-AES128-SHA"
-%      ,"ECDHE-RSA-AES128-SHA"
-%      ,"DHE-DSS-AES128-SHA"
-%      ,"ECDH-ECDSA-AES128-SHA"
-%      ,"ECDH-RSA-AES128-SHA"
-%      ,"AES128-SHA"].
+ciphers() ->
+    ["ECDHE-ECDSA-AES256-GCM-SHA384"
+     ,"ECDHE-RSA-AES256-GCM-SHA384"
+     ,"ECDHE-ECDSA-AES256-SHA384"
+     ,"ECDHE-RSA-AES256-SHA384"
+     ,"ECDHE-ECDSA-DES-CBC3-SHA"
+     ,"ECDH-ECDSA-AES256-GCM-SHA384"
+     ,"ECDH-RSA-AES256-GCM-SHA384"
+     ,"ECDH-ECDSA-AES256-SHA384"
+     ,"ECDH-RSA-AES256-SHA384"
+     ,"DHE-DSS-AES256-GCM-SHA384"
+     ,"DHE-DSS-AES256-SHA256"
+     ,"AES256-GCM-SHA384"
+     ,"AES256-SHA256"
+     ,"ECDHE-ECDSA-AES128-GCM-SHA256"
+     ,"ECDHE-RSA-AES128-GCM-SHA256"
+     ,"ECDHE-ECDSA-AES128-SHA256"
+     ,"ECDHE-RSA-AES128-SHA256"
+     ,"ECDH-ECDSA-AES128-GCM-SHA256"
+     ,"ECDH-RSA-AES128-GCM-SHA256"
+     ,"ECDH-ECDSA-AES128-SHA256"
+     ,"ECDH-RSA-AES128-SHA256"
+     ,"DHE-DSS-AES128-GCM-SHA256"
+     ,"DHE-DSS-AES128-SHA256"
+     ,"AES128-GCM-SHA256"
+     ,"AES128-SHA256"
+     ,"ECDHE-ECDSA-AES256-SHA"
+     ,"ECDHE-RSA-AES256-SHA"
+     ,"DHE-DSS-AES256-SHA"
+     ,"ECDH-ECDSA-AES256-SHA"
+     ,"ECDH-RSA-AES256-SHA"
+     ,"AES256-SHA"
+     ,"ECDHE-ECDSA-AES128-SHA"
+     ,"ECDHE-RSA-AES128-SHA"
+     ,"DHE-DSS-AES128-SHA"
+     ,"ECDH-ECDSA-AES128-SHA"
+     ,"ECDH-RSA-AES128-SHA"
+     ,"AES128-SHA"].
+     
+%% PSK ciphers supported by OpenSSL
+openssl_psk_suite("PSK-AES256-CBC-SHA") ->
+    ssl_cipher:suite({psk, aes_256_cbc,sha});
+openssl_psk_suite("PSK-3DES-EDE-CBC-SHA") ->
+    ssl_cipher:suite({psk, '3des_ede_cbc',sha});
+openssl_psk_suite("PSK-AES128-CBC-SHA") ->
+    ssl_cipher:suite({psk, aes_128_cbc,sha});
+openssl_psk_suite("PSK-RC4-SHA") ->
+    ssl_cipher:suite({psk, rc4_128,sha});
+openssl_psk_suite(CipherString) ->
+    ssl_cipher:openssl_suite(CipherString).
